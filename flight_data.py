@@ -10,17 +10,26 @@ class FlightData:
 def find_cheapest_flight(data, return_date):
     if data is None or (not data.get("best_flights") and not data.get("other_flights")):
         print("No flight data")
-        return FlightData("N/A", "N/A", "N/A", "N/A")
+        return FlightData("N/A", "N/A", "N/A", "N/A","N/A")
 
     all_flights = data.get("best_flights", []) + data.get("other_flights", [])
-    first_flight = all_flights[0]
+    valid_flights = [flight for flight in all_flights if flight.get("price") is not None]
+    if not valid_flights:
+        return FlightData("N/A","N/A","N/A","N/A","N/A")
+
+    first_flight = valid_flights[0]
+
     lowest_price = first_flight["price"] #this is already a number(no conversion needed)
+
     origin_airport = first_flight["flights"][0]["departure_airport"]["id"] # Origin airport
+
     destination_airport = first_flight["flights"][-1]["arrival_airport"]["id"] #Destination airport
+
     departure_date = first_flight["flights"][0]["departure_airport"]["time"].split(" ")[0] #Departure date
+
     #Initialize Comparison
     cheapest_flight = FlightData(lowest_price, origin_airport, destination_airport, departure_date, return_date)
-    for flight in all_flights:
+    for flight in valid_flights:
         # Exception handling - JSON has data but flight is missing 'price'. Skip.
         try:
             price = flight["price"]
@@ -33,6 +42,6 @@ def find_cheapest_flight(data, return_date):
             destination = flight["flights"][-1]["arrival_airport"]["id"]
             out_date = flight["flights"][0]["departure_airport"]["time"].split(" ")[0]
             cheapest_flight = FlightData(lowest_price, origin, destination, out_date, return_date)
-            print(f"Lowest price to {destination} is GBP {lowest_price}")
+            print(f"Lowest price to {destination} is {lowest_price}")
 
     return cheapest_flight

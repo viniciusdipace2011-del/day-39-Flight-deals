@@ -11,7 +11,7 @@ class FlightSearch:
         self.six_month_from_today = datetime.today() + timedelta(days=30 * 6)
 
         self.Flight_API_Endpoint = "https://serpapi.com/search?engine=google_flights"
-        self.Flight_API_Key = os.getenv('FLIGHT_API_KEY')
+        self.Flight_API_Key = os.getenv('SERPAPI_API_KEY')
     def check_flights(self, origin_city_code, destination_city_code, from_time, to_time):
 
         params = {
@@ -29,7 +29,7 @@ class FlightSearch:
         response = requests.get(self.Flight_API_Endpoint, params=params)
 
         if response.status_code != 200:
-            print(f"Flight search returned {response.status_code}")
+            print(response.status_code, response.text)
             return None
         else:
             data = response.json()

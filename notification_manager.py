@@ -1,31 +1,30 @@
 import os
-import smtplib
-import ssl
-from email.message import EmailMessage
+from dotenv import load_dotenv
+from twilio.rest import Client
+
+load_dotenv()
+
+# Using a .env file to retrieve the phone numbers and tokens.
 class NotificationManager:
-    def __init__(self,price,departure_airport_iata_code,
-                 arrival_airport_iata_code,outbound_date,inbound_date):
-        self.price = price
-        self.departure_airport = departure_airport_iata_code
-        self.arrival_airport = arrival_airport_iata_code
-        self.outbound_date = outbound_date
-        self.inbound_date = inbound_date
-    def send_message(self):
-        # Coleta credenciais das variáveis de ambiente de forma segura
-        my_email = os.environ.get("MY_EMAIL")
-        password = os.environ.get("MY_APP_PASSWORD")
-        to_email = os.environ.get("TO_EMAIL")
-        # Monta o e-mail de forma protegida contra Injeção de Cabeçalho (CRLF)
-        msg = EmailMessage()
-        msg.set_content(f"Only {self.price}R$ to Fly From {self.departure_airport} "
-                        f"to {self.arrival_airport}, on {self.outbound_date}. ")
-        msg["Subject"] = "Low Price Alert!"
-        msg["From"] = my_email
-        msg["To"] = to_email
-        # Cria um contexto SSL seguro forçando validação moderna (RFC 8997)
-        context = ssl.create_default_context()
-        # Especifica explicitamente a porta 587 (STARTTLS)
-        with smtplib.SMTP("smtp.gmail.com", port=587) as connection:
-            connection.starttls(context=context)  # Aplica o contexto seguro
-            connection.login(user=my_email, password=password)
-            connection.send_message(msg)
+
+    def __init__(self):
+        self.client = Client(os.environ['TWILIO_SID'], os.environ["TWILIO_AUTH_TOKEN"])
+
+    def send_sms(self, message_body):
+        message = self.client.messages.create(
+            from_=os.environ["TWILIO_VIRTUAL_NUMBER"],
+            body=message_body,
+            to=os.environ["TWILIO_VERIFIED_NUMBER"]
+        )
+        # Prints if successfully sent.
+        print(message.sid)
+
+    # Is SMS not working for you or prefer WhatsApp? Connect to the WhatsApp Sandbox!
+    # https://console.twilio.com/us1/develop/sms/try-it-out/whatsapp-learn
+    def send_whatsapp(self, message_body):
+        message = self.client.messages.create(
+            from_=f'whatsapp:{os.environ["TWILIO_WHATSAPP_NUMBER"]}',
+            body=message_body,
+            to=f'whatsapp:{os.environ["TWILIO_VERIFIED_NUMBER"]}'
+        )
+        print(message.sid)
