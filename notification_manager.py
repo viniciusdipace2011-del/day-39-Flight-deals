@@ -1,30 +1,52 @@
 import os
-from dotenv import load_dotenv
-from twilio.rest import Client
+import smtplib
+import ssl
+from email.message import EmailMessage
+import re
 
-load_dotenv()
-
-# Using a .env file to retrieve the phone numbers and tokens.
 class NotificationManager:
+    PADRAO = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+    def __init__(self, price, origin_airport,
+                     destination_airport, outbound_date,
+                     inbound_date,number_of_stops):
+        self.price = price
+        self.origin_airport = origin_airport
+        self.destination_airport = destination_airport
+        self.outbound_date = outbound_date
+        self.inbound_date = inbound_date
+        self.number_of_stops = number_of_stops
+    def check_email(self,email):
+        striped_email = email.strip().lower()
+        return bool(self.PADRAO.match(striped_email))
 
-    def __init__(self):
-        self.client = Client(os.environ['TWILIO_SID'], os.environ["TWILIO_AUTH_TOKEN"])
+    def send_email(self, user_email):
+        # Coleta credenciais das variáveis de ambiente de forma segura
+        my_email = os.environ.get("MY_EMAIL")
+        password = os.environ.get("MY_APP_PASSWORD")
+        # Monta o e-mail de forma protegida contra Injeção de Cabeçalho (CRLF)
+        msg = EmailMessage()
+        msg.set_content(f"Alerta de preço baixo! Apenas R$ {self.price} para voar "
+                         f"de {self.origin_airport} para {self.destination_airport},"
+                            f" com {self.number_of_stops} parada(s)"
+                         f"em {self.outbound_date} até {self.inbound_date}.")
+        msg["Subject"] = "Low Price Alert!"
+        msg["From"] = my_email
+        if self.check_email(user_email):
+            msg["To"] = user_email
+        else:
+            raise ValueError(f'E-mail inválido: {user_email!r}')
 
-    def send_sms(self, message_body):
-        message = self.client.messages.create(
-            from_=os.environ["TWILIO_VIRTUAL_NUMBER"],
-            body=message_body,
-            to=os.environ["TWILIO_VERIFIED_NUMBER"]
-        )
-        # Prints if successfully sent.
-        print(message.sid)
+        if not all([my_email, password, user_email]):
+            raise Exception("Email not sent!, Some Values Were Wrong!")
+        # Cria um contexto SSL seguro forçando validação moderna (RFC 8997)
+        context = ssl.create_default_context()
+        # Especifica explicitamente a porta 587 (STARTTLS)
+        with smtplib.SMTP("smtp.gmail.com", 587) as connection:
+            connection.ehlo()
+            connection.starttls(context=context)
+            connection.ehlo()
 
-    # Is SMS not working for you or prefer WhatsApp? Connect to the WhatsApp Sandbox!
-    # https://console.twilio.com/us1/develop/sms/try-it-out/whatsapp-learn
-    def send_whatsapp(self, message_body):
-        message = self.client.messages.create(
-            from_=f'whatsapp:{os.environ["TWILIO_WHATSAPP_NUMBER"]}',
-            body=message_body,
-            to=f'whatsapp:{os.environ["TWILIO_VERIFIED_NUMBER"]}'
-        )
-        print(message.sid)
+            connection.login(str(my_email), str(password))
+            connection.send_message(msg)
+
+        print(f"Email successfully sent to {user_email}!")

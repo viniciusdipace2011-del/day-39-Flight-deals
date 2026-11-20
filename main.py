@@ -14,9 +14,6 @@ requests_cache.install_cache(
     }
 )
 
-
-#=============== Set the Dates ===============#
-
 tomorrow = datetime.now() + timedelta(days=1)
 six_month_from_today = datetime.now() + timedelta(days=30*6)
 #This file will need to use the DataManager,FlightSearch, FlightData, NotificationManager classes to achieve the program requirements.
@@ -24,12 +21,21 @@ six_month_from_today = datetime.now() + timedelta(days=30*6)
 DataManager = data_manager.DataManager()
 sheet_data = DataManager.get_data()
 FlightSearch = flight_search.FlightSearch()
-for city in sheet_data:
+# ==================== Retrieve your customer emails ====================
+
+customer_data = DataManager.get_customer_emails()
+# Verify the name of your email column in your sheet. Yours may be different from mine
+customer_email_list = [row["qualSeuEmail?"] for row in customer_data]
+print(customer_email_list)
+# print(f"Your email list includes {customer_email_list}")
+
+#=============== Set the Dates ===============#
+for destination in sheet_data:
     #=============== Some Variables ==============#
-    print(city)
+    print(destination)
     Origin_Id = "MCZ"
-    Arrival_Id = city.get("iataCode")
-    Row_Id = city.get("id")
+    Arrival_Id = destination.get("iataCode")
+    Row_Id = destination.get("id")
     current_date = tomorrow
     #================ Search up The Flight ================#
 
@@ -40,11 +46,23 @@ for city in sheet_data:
                         from_time=departure_date, to_time=return_date)
     #================= Show The Cheapest Flight =================#
     cheapest_flight = find_cheapest_flight(data=FlightSearchResults, return_date=return_date)
-    pprint(f"{city.get('city')}:{cheapest_flight.price}")
-    if cheapest_flight.price != "N/A" and cheapest_flight.price < city.get("lowestPrice"):
-        pprint(f"Lower price flight found to {city.get('city')}!")
+
+    if cheapest_flight.price == "N/A":
+        print(f"No direct flight to {destination['city']}. Looking for indirect flights...")
+        FlightSearchResults = FlightSearch.check_flights(origin_city_code=Origin_Id, destination_city_code=Arrival_Id,
+                                                         from_time=departure_date, to_time=return_date, is_direct=False)
+        cheapest_flight = find_cheapest_flight(data=FlightSearchResults, return_date=return_date)
+
+    # ================= Show The Cheapest Flight =================#
+    pprint(f"{destination.get('city')}:{cheapest_flight.price}")
+    if cheapest_flight.price != "N/A" and cheapest_flight.price < destination.get("lowestPrice"):
+        pprint(f"Lower price flight found to {destination.get('city')}!")
         DataManager.update_cheapest_price(new_price=cheapest_flight.price, row_id=Row_Id)
-        notification_manager = NotificationManager()
-        notification_manager.send_whatsapp(message_body=f"Low price alert! Only GBP {cheapest_flight.price} to fly "
-                        f"from {cheapest_flight.origin_airport} to {cheapest_flight.destination_airport}, "
-                        f"on {cheapest_flight.out_date} until {cheapest_flight.return_date}.")
+        notification_manager = NotificationManager(price=cheapest_flight.price,
+                                                   origin_airport=Origin_Id,
+                                                   destination_airport=destination["city"],
+                                                   outbound_date=departure_date
+                                                   , inbound_date=return_date,
+                                                   number_of_stops=cheapest_flight.number_of_stops,)
+        for user_email in customer_email_list:
+            notification_manager.send_email(user_email=user_email)
